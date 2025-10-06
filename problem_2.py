@@ -74,15 +74,26 @@ def a_star_alignment(D1, D2):
 
 
 # ---------- Run Example ----------
-if __name__ == "__main__":
-    doc1 = "Artificial intelligence is the future. It helps in solving problems. AI is widely used."
-    doc2 = "AI is the future. It helps solve problems. It is used everywhere."
+if _name_ == "_main_":
+    # Input file names
+    file1 = input("Enter first file name: ")
+    file2 = input("Enter second file name: ")
 
+    # Read file contents
+    with open(file1, 'r', encoding='utf-8') as f1:
+        doc1 = f1.read()
+
+    with open(file2, 'r', encoding='utf-8') as f2:
+        doc2 = f2.read()
+
+    # Preprocess documents
     D1 = preprocess(doc1)
     D2 = preprocess(doc2)
 
+    # Run A* alignment
     result = a_star_alignment(D1, D2)
 
+    # Display results
     print("\nAlignment Results:")
     for pair in result:
         print(pair)
@@ -90,4 +101,4 @@ if __name__ == "__main__":
     print("\nPotential Plagiarism Detected (Edit Distance <= 3):")
     for s1, s2, cost in result:
         if s1 and s2 and cost <= 3:
-            print(f" - \"{s1}\" ↔ \"{s2}\" (Edit Distance: {cost})")
+            print(f' - "{s1}" ↔ "{s2}" (Edit Distance: {cost})')
