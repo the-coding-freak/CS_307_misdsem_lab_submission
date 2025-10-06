@@ -1,104 +1,94 @@
-import heapq
 import re
-import itertools
-
-# ---------- Preprocessing ----------
-def preprocess(text):
-    text = text.lower()
-    text = re.sub(r'[^\w\s]', '', text)
-    sentences = text.split(".")
-    return [s.strip() for s in sentences if s.strip()]
 
 # ---------- Edit Distance ----------
-def levenshtein(s1, s2):
+def edit_distance(s1, s2):
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 
     for i in range(m + 1):
-        dp[i][0] = i
-    for j in range(n + 1):
-        dp[0][j] = j
-
-    for i in range(1, m + 1):
-        for j in range(1, n + 1):
-            cost = 0 if s1[i - 1] == s2[j - 1] else 1
-            dp[i][j] = min(dp[i - 1][j] + 1,     # deletion
-                           dp[i][j - 1] + 1,     # insertion
-                           dp[i - 1][j - 1] + cost)  # substitution
+        for j in range(n + 1):
+            if i == 0:
+                dp[i][j] = j
+            elif j == 0:
+                dp[i][j] = i
+            elif s1[i - 1] == s2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
     return dp[m][n]
 
-# ---------- Heuristic ----------
-def heuristic(i, j, D1, D2):
-    remaining = min(len(D1) - i, len(D2) - j)
-    return remaining  # assume each remaining alignment costs at least 1
 
-# ---------- A* Algorithm ----------
-def a_star_alignment(D1, D2):
-    m, n = len(D1), len(D2)
-    start = (0, 0, 0, [])  # (i, j, g, path)
-    open_list = []
-    visited = {}
-    SKIP_COST = 5
-    counter = itertools.count()  # unique tie-breaker
-
-    # push the start node
-    heapq.heappush(open_list, (0, next(counter), start))
-
-    while open_list:
-        f, _, (i, j, g, path) = heapq.heappop(open_list)
-
-        if (i, j) in visited and visited[(i, j)] <= g:
-            continue
-        visited[(i, j)] = g
-
-        if i == m and j == n:
-            return path
-
-        # Align sentences
-        if i < m and j < n:
-            cost = levenshtein(D1[i], D2[j])
-            new_state = (i + 1, j + 1, g + cost, path + [(D1[i], D2[j], cost)])
-            heapq.heappush(open_list, (new_state[2] + heuristic(i + 1, j + 1, D1, D2), next(counter), new_state))
-
-        # Skip sentence in D1
-        if i < m:
-            new_state = (i + 1, j, g + SKIP_COST, path + [(D1[i], None, SKIP_COST)])
-            heapq.heappush(open_list, (new_state[2] + heuristic(i + 1, j, D1, D2), next(counter), new_state))
-
-        # Skip sentence in D2
-        if j < n:
-            new_state = (i, j + 1, g + SKIP_COST, path + [(None, D2[j], SKIP_COST)])
-            heapq.heappush(open_list, (new_state[2] + heuristic(i, j + 1, D1, D2), next(counter), new_state))
-
-    return None
+# ---------- Split sentences ----------
+def split_sentences(text):
+    sentences = re.split(r'[.!?]', text)
+    return [s.strip().lower() for s in sentences if s.strip()]
 
 
-# ---------- Run Example ----------
-if _name_ == "_main_":
-    # Input file names
-    file1 = input("Enter first file name: ")
-    file2 = input("Enter second file name: ")
+# ---------- Detect Plagiarism ----------
+def detect_plagiarism(doc1, doc2, threshold=0.5):
+    s1 = split_sentences(doc1)
+    s2 = split_sentences(doc2)
 
-    # Read file contents
-    with open(file1, 'r', encoding='utf-8') as f1:
-        doc1 = f1.read()
+    total = len(s1)
+    matches = []
 
-    with open(file2, 'r', encoding='utf-8') as f2:
-        doc2 = f2.read()
+    for sentence1 in s1:
+        best_match = None
+        best_similarity = 0
 
-    # Preprocess documents
-    D1 = preprocess(doc1)
-    D2 = preprocess(doc2)
+        for sentence2 in s2:
+            distance = edit_distance(sentence1, sentence2)
+            max_len = max(len(sentence1), len(sentence2))
+            similarity = 1 - distance / max_len if max_len > 0 else 0
 
-    # Run A* alignment
-    result = a_star_alignment(D1, D2)
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = sentence2
 
-    # Display results
-    print("\nAlignment Results:")
-    for pair in result:
-        print(pair)
+        if best_similarity >= threshold:
+            matches.append((sentence1, best_match, best_similarity))
 
-    print("\nPotential Plagiarism Detected (Edit Distance <= 3):")
-    for s1, s2, cost in result:
-        if s1 and s2 and cost <= 3:
-            print(f' - "{s1}" ↔ "{s2}" (Edit Distance: {cost})')
+    ppd = (len(matches) / total) * 100 if total > 0 else 0
+    return matches, ppd
+
+
+# ---------- Test Cases ----------
+tests = {
+    "Test Case 1: Identical Documents": (
+        "The sun rises in the east and sets in the west. It provides light and energy for all living beings.",
+        "The sun rises in the east and sets in the west. It provides light and energy for all living beings."
+    ),
+
+    "Test Case 2: Slightly Modified Document": (
+        "The sun rises in the east and sets in the west. It gives warmth and energy to all creatures.",
+        "The sun rises in the east and sets in the west. It provides light and energy for all living beings."
+    ),
+
+    "Test Case 3: Completely Different Documents": (
+        "Artificial intelligence is transforming modern industries with automation and smart analytics.",
+        "The rainforest is home to countless species of animals and plants that balance the ecosystem."
+    ),
+
+    "Test Case 4: Partial Overlap": (
+        "The internet has changed communication across the world. Social media connects people instantly.",
+        "The internet has changed communication across the globe. However, excessive use causes isolation."
+    )
+}
+
+
+# ---------- Run Tests ----------
+for name, (doc1, doc2) in tests.items():
+    matches, ppd = detect_plagiarism(doc1, doc2)
+
+    print("=" * 30)
+    print(name)
+    print("=" * 30)
+    print("Potential Plagiarism Detected (Similarity >= 0.5):")
+
+    if matches:
+        for s1, s2, sim in matches:
+            print(f' - "{s1}" ↔ "{s2}" (Similarity: {sim:.2f})')
+    else:
+        print(" No matches found")
+
+    print(f"\nPPD Value: {ppd:.2f}%\n")
