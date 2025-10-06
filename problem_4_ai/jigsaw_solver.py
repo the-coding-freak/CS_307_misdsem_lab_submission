@@ -150,7 +150,7 @@ def smart_initialization(pieces, g):
         used[best_p] = True
     return state
 
-def multi_start_solve(pieces, g, num_starts=3):
+def multi_start_solve(pieces, g, num_starts=10):
     """Run solver multiple times to avoid local minima."""
     best_overall_s, best_overall_c = None, float('inf')
     for start in range(num_starts):
